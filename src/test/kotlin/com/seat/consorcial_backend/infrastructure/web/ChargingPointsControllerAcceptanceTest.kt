@@ -4,30 +4,41 @@ import io.restassured.module.mockmvc.RestAssuredMockMvc
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
-import org.mockito.kotlin.any
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import com.seat.consorcial_backend.application.ChargingPointsRetriever
+import com.seat.consorcial_backend.application.ChargingPointsRetrieverImpl
 import com.seat.consorcial_backend.domain.ChargingPoint
+import com.seat.consorcial_backend.domain.ChargingPointRepository
 import com.seat.consorcial_backend.domain.ChargingPointStatus
 import com.seat.consorcial_backend.domain.DemandLevel
 import org.hamcrest.Matchers.equalTo
-import org.hamcrest.Matchers.hasSize
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import com.seat.consorcial_backend.infrastructure.web.GlobalExceptionHandler
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.boot.test.web.server.LocalServerPort
 
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
+)
 class ChargingPointsControllerAcceptanceTest {
 
-    private lateinit var chargingPointsRetriever: ChargingPointsRetriever
     private lateinit var controller: ChargingPointsController
     private lateinit var exceptionHandler: GlobalExceptionHandler
 
+    @LocalServerPort
+    val port: Int = 0
+
+    @MockBean
+    private lateinit var repository: ChargingPointRepository
+
     @BeforeEach
     fun setup() {
-        chargingPointsRetriever = Mockito.mock(ChargingPointsRetriever::class.java)
-        controller = ChargingPointsController(chargingPointsRetriever)
+        val useCase = ChargingPointsRetrieverImpl(repository)
+        controller = ChargingPointsController(useCase)
         exceptionHandler = GlobalExceptionHandler()
         
         val mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -53,8 +64,17 @@ class ChargingPointsControllerAcceptanceTest {
             )
         )
         
-        Mockito.`when`(chargingPointsRetriever.doUseCase(any<ChargingPointsRetriever.Request>()))
-            .thenReturn(chargingPoints)
+        Mockito.`when`(repository.findByFilters(
+            latitude = null,
+            longitude = null,
+            radius = null,
+            brands = null,
+            status = null,
+            demand = null,
+            amenities = null,
+            connectorTypes = null,
+            search = null
+        )).thenReturn(chargingPoints)
 
         // When/Then
         RestAssuredMockMvc.given()
@@ -86,8 +106,17 @@ class ChargingPointsControllerAcceptanceTest {
             )
         )
         
-        Mockito.`when`(chargingPointsRetriever.doUseCase(any<ChargingPointsRetriever.Request>()))
-            .thenReturn(chargingPoints)
+        Mockito.`when`(repository.findByFilters(
+            latitude = 41.3851,
+            longitude = 2.1734,
+            radius = 50.0,
+            brands = null,
+            status = ChargingPointStatus.AVAILABLE,
+            demand = DemandLevel.LOW,
+            amenities = null,
+            connectorTypes = null,
+            search = null
+        )).thenReturn(chargingPoints)
 
         // When/Then
         RestAssuredMockMvc.given()
@@ -143,7 +172,7 @@ class ChargingPointsControllerAcceptanceTest {
             .statusCode(400)
             .body("status", equalTo(400))
             .body("error", equalTo("Bad Request"))
-            .body("message", equalTo("Parameter 'radius' should be of type double"))
+            .body("message", equalTo("Parameter 'radius' should be of type Double"))
     }
 
 } 
