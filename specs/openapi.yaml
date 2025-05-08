@@ -1,0 +1,864 @@
+
+openapi: 3.0.3
+info:
+  title: Con-sorcial API
+  description: API for Con-sorcial electric vehicle charging platform
+  version: 1.0.0
+  contact:
+    name: Con-sorcial Support
+    url: https://con-sorcial.com/support
+    email: support@con-sorcial.com
+
+servers:
+  - url: https://api.con-sorcial.com/v1
+    description: Production server
+  - url: https://dev-api.con-sorcial.com/v1
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: ChargingPoints
+    description: Charging points operations
+  - name: TripPlanning
+    description: Trip planning and route calculations
+  - name: User
+    description: User profile and preferences
+
+paths:
+  # Authentication endpoints
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login a user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Charging Points endpoints
+  /charging-points:
+    get:
+      tags:
+        - ChargingPoints
+      summary: Get all charging points with optional filtering
+      operationId: getChargingPoints
+      parameters:
+        - name: lat
+          in: query
+          description: Latitude of the center point for search
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          description: Longitude of the center point for search
+          schema:
+            type: number
+            format: double
+        - name: radius
+          in: query
+          description: Search radius in kilometers
+          schema:
+            type: number
+            format: double
+            default: 50
+        - name: brands
+          in: query
+          description: Filter by brands (comma separated)
+          schema:
+            type: array
+            items:
+              type: string
+            style: form
+            explode: false
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [available, busy, offline, all]
+            default: all
+        - name: demand
+          in: query
+          description: Filter by demand level
+          schema:
+            type: string
+            enum: [low, medium, high, all]
+            default: all
+        - name: amenities
+          in: query
+          description: Filter by amenities (comma separated)
+          schema:
+            type: array
+            items:
+              type: string
+            style: form
+            explode: false
+        - name: connectorTypes
+          in: query
+          description: Filter by connector types (comma separated)
+          schema:
+            type: array
+            items:
+              type: string
+            style: form
+            explode: false
+        - name: search
+          in: query
+          description: Search term for charging points (name, address, etc.)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of charging points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChargingPoint'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /charging-points/{id}:
+    get:
+      tags:
+        - ChargingPoints
+      summary: Get a specific charging point by ID
+      operationId: getChargingPointById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the charging point
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Charging point details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChargingPoint'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /charging-points/{id}/reports:
+    post:
+      tags:
+        - ChargingPoints
+      summary: Submit a report for a charging point
+      operationId: submitChargingPointReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the charging point
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportSubmission'
+      responses:
+        '201':
+          description: Report submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /charging-points/{id}/reviews:
+    post:
+      tags:
+        - ChargingPoints
+      summary: Submit a review for a charging point
+      operationId: submitChargingPointReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the charging point
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmission'
+      responses:
+        '201':
+          description: Review submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Trip Planning endpoints
+  /trip/route:
+    post:
+      tags:
+        - TripPlanning
+      summary: Calculate a route between two points with charging stops
+      operationId: calculateRoute
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripPlanRequest'
+      responses:
+        '200':
+          description: Route calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripRoute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /locations/search:
+    get:
+      tags:
+        - TripPlanning
+      summary: Search for locations by query (addresses, cities, POIs)
+      operationId: searchLocations
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of matching locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # User endpoints
+  /user/profile:
+    get:
+      tags:
+        - User
+      summary: Get the current user's profile
+      operationId: getUserProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - User
+      summary: Update the current user's profile
+      operationId: updateUserProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: User profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /user/vehicles:
+    get:
+      tags:
+        - User
+      summary: Get all vehicles for the current user
+      operationId: getUserVehicles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of user's vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VehicleType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - User
+      summary: Add a new vehicle for the current user
+      operationId: addUserVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleTypeCreate'
+      responses:
+        '201':
+          description: Vehicle added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleType'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /user/vehicles/{id}:
+    put:
+      tags:
+        - User
+      summary: Update a specific vehicle
+      operationId: updateUserVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the vehicle
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleTypeUpdate'
+      responses:
+        '200':
+          description: Vehicle updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleType'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - User
+      summary: Delete a specific vehicle
+      operationId: deleteUserVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the vehicle
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Vehicle deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # Authentication schemas
+    UserRegistration:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    UserLogin:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expiresIn:
+          type: integer
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    # Charging Point schemas
+    ChargingPoint:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        operator:
+          type: string
+        brand:
+          type: string
+        distance:
+          type: number
+          format: double
+        address:
+          type: string
+        status:
+          type: string
+          enum: [available, busy, offline]
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        chargers:
+          type: object
+          properties:
+            available:
+              type: integer
+            total:
+              type: integer
+            types:
+              type: array
+              items:
+                type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        demand:
+          type: string
+          enum: [low, medium, high]
+        rating:
+          type: number
+          format: float
+        lastUpdate:
+          type: string
+          format: date-time
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        batteryLevelBeforeCharge:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        batteryLevelAfterCharge:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          format: date-time
+        issue:
+          type: string
+        reason:
+          type: string
+          enum: [broken_charger, payment_issue, access_problem, offline, occupied, other]
+        details:
+          type: string
+        resolved:
+          type: boolean
+
+    ReportSubmission:
+      type: object
+      required:
+        - reason
+        - details
+      properties:
+        reason:
+          type: string
+          enum: [broken_charger, payment_issue, access_problem, offline, occupied, other]
+        details:
+          type: string
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        date:
+          type: string
+          format: date-time
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    ReviewSubmission:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    # Trip Planning schemas
+    Location:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+
+    VehicleType:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        range:
+          type: number
+          format: double
+        connector:
+          type: string
+
+    VehicleTypeCreate:
+      type: object
+      required:
+        - name
+        - range
+        - connector
+      properties:
+        name:
+          type: string
+        range:
+          type: number
+          format: double
+        connector:
+          type: string
+
+    VehicleTypeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        range:
+          type: number
+          format: double
+        connector:
+          type: string
+
+    TripPlanRequest:
+      type: object
+      required:
+        - origin
+        - destination
+        - vehicle
+        - currentBatteryLevel
+      properties:
+        origin:
+          $ref: '#/components/schemas/Location'
+        destination:
+          $ref: '#/components/schemas/Location'
+        vehicle:
+          $ref: '#/components/schemas/VehicleType'
+        currentBatteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+        targetArrivalBatteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 20
+        departureTime:
+          type: string
+          format: date-time
+        plannedStops:
+          type: string
+          enum: [auto, manual, none]
+          default: auto
+
+    TripRoute:
+      type: object
+      properties:
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoutePoint'
+        totalDistance:
+          type: number
+          format: double
+        totalDuration:
+          type: integer
+          description: Total duration in minutes
+        estimatedChargeTime:
+          type: integer
+          description: Estimated charging time in minutes
+        chargingStations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChargingPoint'
+
+    RoutePoint:
+      type: object
+      properties:
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        type:
+          type: string
+          enum: [origin, destination, waypoint, charging]
+        name:
+          type: string
+        timeFromOrigin:
+          type: integer
+          description: Minutes from the origin
+        distanceFromOrigin:
+          type: number
+          format: double
+          description: Distance in kilometers from the origin
+        
+    # User Profile schemas
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        vehicles:
+          type: array
+          items:
+            $ref: '#/components/schemas/VehicleType'
+        preferredConnectorTypes:
+          type: array
+          items:
+            type: string
+        preferredBrands:
+          type: array
+          items:
+            type: string
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        preferredConnectorTypes:
+          type: array
+          items:
+            type: string
+        preferredBrands:
+          type: array
+          items:
+            type: string
+
+    # Common schemas
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        details:
+          type: object
